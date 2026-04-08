@@ -1,0 +1,85 @@
+:root {
+  color-scheme: dark;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background:
+    radial-gradient(circle at top, rgba(255, 81, 47, 0.24), transparent 48%),
+    linear-gradient(180deg, #121212 0%, #090909 100%);
+  color: #f8f5f0;
+}
+
+.popup {
+  padding: 16px;
+}
+
+.panel {
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  background: rgba(22, 22, 22, 0.92);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.3);
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 11px;
+  color: #f6ae72;
+}
+
+h1 {
+  margin: 0 0 18px;
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 14px;
+}
+
+.slider {
+  width: 100%;
+  margin: 18px 0 8px;
+  accent-color: #ff6a3d;
+}
+
+.scale {
+  display: flex;
+  justify-content: space-between;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 12px;
+}
+
+.hint {
+  margin: 14px 0 0;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.optionsButton {
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 14px;
+  background: #f6ae72;
+  color: #15110f;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.optionsButton:hover,
+.optionsButton:focus-visible {
+  background: #ffc38f;
+}

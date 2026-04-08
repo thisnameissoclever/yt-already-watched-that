@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Stop YouTube Reruns Settings</title>
+    <link rel="stylesheet" href="options.css">
+  </head>
+  <body>
+    <main class="layout">
+      <section class="hero">
+        <p class="eyebrow">Stop YouTube Reruns</p>
+        <h1>More settings</h1>
+        <p class="lede">Choose when watched videos should disappear from YouTube.</p>
+      </section>
+
+      <section class="card">
+        <h2>Quick settings</h2>
+        <label class="thresholdRow" for="thresholdPercent">
+          <span>Hide watched videos after</span>
+          <strong id="thresholdValue">70%</strong>
+        </label>
+        <input
+          id="thresholdPercent"
+          class="slider"
+          type="range"
+          min="0"
+          max="100"
+          step="10"
+          value="70"
+        >
+        <div class="scale" aria-hidden="true">
+          <span>0%</span>
+          <span>100%</span>
+        </div>
+        <p class="supporting">0% hides any video with a watched bar. 100% hides only fully watched videos.</p>
+      </section>
+
+      <section class="card">
+        <h2>Hide watched videos on</h2>
+        <label class="toggle">
+          <input id="enabledOnVideoPage" type="checkbox">
+          <span>Video page</span>
+        </label>
+        <label class="toggle">
+          <input id="enabledOnSubscriptions" type="checkbox">
+          <span>Subscriptions page</span>
+        </label>
+        <label class="toggle">
+          <input id="enabledOnHome" type="checkbox">
+          <span>Home page</span>
+        </label>
+        <label class="toggle">
+          <input id="enabledOnPlaylistPage" type="checkbox">
+          <span>Playlist page</span>
+        </label>
+        <label class="toggle">
+          <input id="enabledOnWatchPlaylist" type="checkbox">
+          <span>Watch page with playlist open</span>
+        </label>
+      </section>
+    </main>
+
+    <script src="settings.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>

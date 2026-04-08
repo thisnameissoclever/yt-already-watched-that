@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Stop YouTube Reruns</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="popup">
+      <section class="panel">
+        <p class="eyebrow">Stop YouTube Reruns</p>
+        <h1>Hide watched videos</h1>
+        <label class="setting" for="thresholdPercent">
+          <span>Hide watched episodes after</span>
+          <strong id="thresholdValue">70%</strong>
+        </label>
+        <input
+          id="thresholdPercent"
+          class="slider"
+          type="range"
+          min="0"
+          max="100"
+          step="10"
+          value="70"
+        >
+        <div class="scale" aria-hidden="true">
+          <span>0%</span>
+          <span>100%</span>
+        </div>
+        <p class="hint">0% hides any video with a watched progress bar. 100% hides only fully watched videos.</p>
+      </section>
+
+      <button id="openOptions" class="optionsButton" type="button">More settings</button>
+    </main>
+
+    <script src="settings.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>
