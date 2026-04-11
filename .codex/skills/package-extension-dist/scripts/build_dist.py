@@ -10,6 +10,7 @@ import json
 import re
 import sys
 import zipfile
+from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Iterable
@@ -18,6 +19,8 @@ from typing import Iterable
 ARCHIVE_EXTENSION = ".zip"
 HTML_FILE_SUFFIXES = {".html", ".htm"}
 LOCAL_PATH_PATTERN = re.compile(r"^(?![a-zA-Z][a-zA-Z0-9+.-]*:|//|#)(.+)$")
+SEMVER_PATTERN = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
+MANIFEST_VERSION_PATTERN = re.compile(r'("version"\s*:\s*")(\d+\.\d+\.\d+)(")')
 
 
 class LocalAssetParser(HTMLParser):
@@ -37,6 +40,12 @@ class LocalAssetParser(HTMLParser):
                 self.references.add(href)
 
 
+@dataclass(frozen=True)
+class ReleaseInfo:
+    path: Path
+    version: str | None
+
+
 def slugify(value: str) -> str:
     lowered = value.strip().lower()
     slug = re.sub(r"[^a-z0-9]+", "-", lowered).strip("-")
@@ -50,6 +59,101 @@ def is_local_reference(value: str) -> bool:
 def normalize_reference(base_dir: Path, reference: str) -> Path:
     cleaned = reference.split("?", 1)[0].split("#", 1)[0]
     return (base_dir / cleaned).resolve()
+
+
+def parse_semver(version: str) -> tuple[int, int, int]:
+    match = SEMVER_PATTERN.match(version)
+    if not match:
+        raise ValueError(f"Unsupported version format: {version}. Expected major.minor.patch")
+    return tuple(int(group) for group in match.groups())
+
+
+def bump_patch(version: str) -> str:
+    major, minor, patch = parse_semver(version)
+    return f"{major}.{minor}.{patch + 1}"
+
+
+def versioned_archive_pattern(slug: str) -> re.Pattern[str]:
+    return re.compile(rf"^{re.escape(slug)}-(\d+\.\d+\.\d+){re.escape(ARCHIVE_EXTENSION)}$")
+
+
+def find_latest_release(dist_dir: Path, slug: str) -> ReleaseInfo | None:
+    if not dist_dir.is_dir():
+        return None
+
+    candidates = [
+        path
+        for path in dist_dir.glob(f"{slug}*{ARCHIVE_EXTENSION}")
+        if path.is_file()
+    ]
+    if not candidates:
+        return None
+
+    latest = max(candidates, key=lambda path: path.stat().st_mtime)
+    match = versioned_archive_pattern(slug).match(latest.name)
+    version = match.group(1) if match else None
+    return ReleaseInfo(path=latest, version=version)
+
+
+def update_manifest_version(manifest_path: Path, manifest_text: str, version: str) -> str:
+    updated_text, replacements = MANIFEST_VERSION_PATTERN.subn(
+        rf"\g<1>{version}\g<3>",
+        manifest_text,
+        count=1,
+    )
+    if replacements != 1:
+        raise ValueError("Could not update version in manifest.json")
+    manifest_path.write_text(updated_text, encoding="utf-8")
+    return updated_text
+
+
+def resolve_packaging_version(
+    repo_root: Path,
+    manifest_path: Path,
+    manifest: dict,
+    manifest_text: str,
+) -> tuple[dict, str, str]:
+    current_version = manifest.get("version")
+    if not isinstance(current_version, str):
+        raise ValueError("manifest.json is missing a string version field")
+
+    parse_semver(current_version)
+
+    slug = slugify(str(manifest.get("name", "extension-dist")))
+    latest_release = find_latest_release(repo_root / "dist", slug)
+
+    if latest_release is None:
+        next_version = bump_patch(current_version)
+        updated_text = update_manifest_version(manifest_path, manifest_text, next_version)
+        updated_manifest = json.loads(updated_text)
+        return updated_manifest, next_version, "No previous packaged release found; bumped patch version."
+
+    if latest_release.version is None:
+        next_version = bump_patch(current_version)
+        updated_text = update_manifest_version(manifest_path, manifest_text, next_version)
+        updated_manifest = json.loads(updated_text)
+        return (
+            updated_manifest,
+            next_version,
+            f"Latest packaged release '{latest_release.path.name}' was unversioned; bumped patch version.",
+        )
+
+    parse_semver(latest_release.version)
+
+    if latest_release.version == current_version:
+        next_version = bump_patch(current_version)
+        updated_text = update_manifest_version(manifest_path, manifest_text, next_version)
+        updated_manifest = json.loads(updated_text)
+        return (
+            updated_manifest,
+            next_version,
+            f"Latest packaged release already used version {current_version}; bumped patch version.",
+        )
+
+    return manifest, current_version, (
+        f"Current manifest version {current_version} already differs from latest packaged "
+        f"release version {latest_release.version}; no version bump applied."
+    )
 
 
 def collect_manifest_paths(repo_root: Path, manifest: dict) -> set[Path]:
@@ -214,17 +318,25 @@ def main() -> int:
         print(f"[ERROR] manifest.json not found in {repo_root}", file=sys.stderr)
         return 1
 
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    extension_name = manifest.get("name", "extension-dist")
-    default_output = repo_root / "dist" / f"{slugify(extension_name)}{ARCHIVE_EXTENSION}"
-    output_path = Path(args.output).resolve() if args.output else default_output
-
     try:
+        manifest_text = manifest_path.read_text(encoding="utf-8")
+        manifest = json.loads(manifest_text)
+        manifest, packaged_version, version_message = resolve_packaging_version(
+            repo_root,
+            manifest_path,
+            manifest,
+            manifest_text,
+        )
+        extension_name = str(manifest.get("name", "extension-dist"))
+        default_output = repo_root / "dist" / f"{slugify(extension_name)}-{packaged_version}{ARCHIVE_EXTENSION}"
+        output_path = Path(args.output).resolve() if args.output else default_output
         archive_path, file_count = build_archive(repo_root, output_path)
     except Exception as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)
         return 1
 
+    print(version_message)
+    print(f"Using manifest version {packaged_version}")
     print(f"Created {archive_path}")
     print(f"Packaged {file_count} files")
     return 0
