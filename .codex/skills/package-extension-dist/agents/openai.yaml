@@ -1,0 +1,4 @@
+interface:
+  display_name: "Package Extension Dist"
+  short_description: "Build a release zip for this Chrome extension"
+  default_prompt: "Use $package-extension-dist to create a release zip for this Chrome extension from the current repo state."

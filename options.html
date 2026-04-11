@@ -11,11 +11,15 @@
       <section class="hero">
         <p class="eyebrow">Stop YouTube Reruns</p>
         <h1>More settings</h1>
-        <p class="lede">Choose when watched videos should disappear from YouTube.</p>
+        <p class="lede">Choose which YouTube surfaces should hide watched videos, and how much watch progress counts as watched.</p>
       </section>
 
       <section class="card">
         <h2>Quick settings</h2>
+        <label class="toggle">
+          <input id="enabledGlobally" type="checkbox">
+          <span>Filtering enabled everywhere</span>
+        </label>
         <label class="thresholdRow" for="thresholdPercent">
           <span>Hide watched videos after</span>
           <strong id="thresholdValue">70%</strong>
@@ -33,30 +37,45 @@
           <span>0%</span>
           <span>100%</span>
         </div>
-        <p class="supporting">0% hides any video with a watched bar. 100% hides only fully watched videos.</p>
+        <p class="supporting">0% hides any video with visible watched progress. 100% hides only fully watched videos.</p>
       </section>
 
       <section class="card">
         <h2>Hide watched videos on</h2>
         <label class="toggle">
           <input id="enabledOnVideoPage" type="checkbox">
-          <span>Video page</span>
+          <span>Video page suggestions</span>
+        </label>
+        <label class="toggle">
+          <input id="enabledOnWatchPagePlaylist" type="checkbox">
+          <span>Playlist on video page</span>
+        </label>
+        <p class="supporting">
+          On a video page with a playlist open, "Video page suggestions" controls the suggestions rail and
+          "Playlist on video page" controls only the playlist widget above it.
+        </p>
+        <label class="toggle">
+          <input id="enabledOnSearchResults" type="checkbox">
+          <span>Search results</span>
+        </label>
+        <p class="supporting">
+          Search results are off by default so the extension stays conservative outside your main feeds.
+        </p>
+        <label class="toggle">
+          <input id="enabledOnChannelVideos" type="checkbox">
+          <span>Channel videos tab</span>
         </label>
         <label class="toggle">
           <input id="enabledOnSubscriptions" type="checkbox">
-          <span>Subscriptions page</span>
+          <span>Subscriptions feed</span>
         </label>
         <label class="toggle">
           <input id="enabledOnHome" type="checkbox">
-          <span>Home page</span>
+          <span>Home feed</span>
         </label>
         <label class="toggle">
           <input id="enabledOnPlaylistPage" type="checkbox">
           <span>Playlist page</span>
-        </label>
-        <label class="toggle">
-          <input id="enabledOnWatchPlaylist" type="checkbox">
-          <span>Watch page with playlist open</span>
         </label>
       </section>
     </main>

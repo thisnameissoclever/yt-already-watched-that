@@ -11,6 +11,10 @@
       <section class="panel">
         <p class="eyebrow">Stop YouTube Reruns</p>
         <h1>Hide watched videos</h1>
+        <label class="toggleRow" for="enabledGlobally">
+          <span>Filtering enabled</span>
+          <input id="enabledGlobally" type="checkbox">
+        </label>
         <label class="setting" for="thresholdPercent">
           <span>Hide watched episodes after</span>
           <strong id="thresholdValue">70%</strong>
@@ -29,9 +33,11 @@
           <span>100%</span>
         </div>
         <p class="hint">0% hides any video with a watched progress bar. 100% hides only fully watched videos.</p>
+        <p id="pageStatus" class="pageStatus">Checking this page...</p>
       </section>
 
       <button id="openOptions" class="optionsButton" type="button">More settings</button>
+      <button id="revealHidden" class="revealButton" type="button">Show hidden videos for this page</button>
     </main>
 
     <script src="settings.js"></script>

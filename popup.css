@@ -38,12 +38,25 @@ h1 {
   line-height: 1.1;
 }
 
+.toggleRow,
 .setting {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   font-size: 14px;
+}
+
+.toggleRow {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.toggleRow input {
+  width: 18px;
+  height: 18px;
+  accent-color: #ff6a3d;
 }
 
 .slider {
@@ -66,6 +79,15 @@ h1 {
   line-height: 1.45;
 }
 
+.pageStatus {
+  margin: 16px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .optionsButton {
   width: 100%;
   margin-top: 12px;
@@ -82,4 +104,27 @@ h1 {
 .optionsButton:hover,
 .optionsButton:focus-visible {
   background: #ffc38f;
+}
+
+.revealButton {
+  width: 100%;
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #f8f5f0;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.revealButton:hover,
+.revealButton:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.revealButton:disabled {
+  opacity: 0.6;
+  cursor: default;
 }

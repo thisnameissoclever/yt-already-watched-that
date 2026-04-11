@@ -1,7 +1,7 @@
 (function initContentScript(global) {
   const {
     DEFAULT_SETTINGS,
-    isEnabledOnCurrentPage,
+    getPageScope,
     readSettings,
     subscribeToSettingsChanges,
   } = global.YAWTSettings;
@@ -12,18 +12,36 @@
     "ytd-video-renderer",
     "ytd-grid-video-renderer",
     "ytd-rich-grid-media",
+    "ytd-playlist-panel-video-renderer",
     "yt-lockup-view-model",
   ].join(", ");
 
-  const WATCHED_SEGMENT_SELECTOR =
-    "yt-thumbnail-overlay-progress-bar-view-model .ytThumbnailOverlayProgressBarHostWatchedProgressBarSegment";
+  const WATCHED_SEGMENT_SELECTORS = [
+    "yt-thumbnail-overlay-progress-bar-view-model .ytThumbnailOverlayProgressBarHostWatchedProgressBarSegment",
+    "ytd-thumbnail-overlay-resume-playback-renderer #progress",
+  ];
+  const CONTENT_LINK_SELECTOR = 'a[href*="/watch?"]';
+  const WATCH_PAGE_PLAYLIST_SELECTOR = "ytd-playlist-panel-renderer#playlist";
+  const WATCH_PAGE_SUGGESTIONS_SELECTOR = "ytd-watch-next-secondary-results-renderer";
   const MANAGED_ATTRIBUTE = "data-yawt-managed";
   const HIDDEN_ATTRIBUTE = "data-yawt-hidden";
   const STYLE_ELEMENT_ID = "yawt-extension-style";
+  const SUPPORTED_PAGE_SCOPES = new Set([
+    "home",
+    "subscriptions",
+    "video",
+    "playlist",
+    "watchPlaylist",
+    "searchResults",
+    "channelVideos",
+  ]);
 
   let activeSettings = { ...DEFAULT_SETTINGS };
   let scanTimerId = null;
   let lastSeenUrl = global.location.href;
+  let currentPageScope = getPageScope();
+  let currentHiddenCount = 0;
+  let pageRevealActive = false;
 
   function ensureStyles() {
     if (document.getElementById(STYLE_ELEMENT_ID)) {
@@ -57,7 +75,7 @@
         return false;
       }
 
-      return Boolean(root.querySelector('a[href*="/watch?"]'));
+      return Boolean(root.querySelector(CONTENT_LINK_SELECTOR));
     });
   }
 
@@ -79,8 +97,35 @@
     return Number.isFinite(numericValue) ? numericValue : null;
   }
 
+  function getWatchedSegment(root) {
+    for (const selector of WATCHED_SEGMENT_SELECTORS) {
+      const segment = root.querySelector(selector);
+      if (segment) {
+        return segment;
+      }
+    }
+
+    return null;
+  }
+
+  function isCurrentPlaylistItem(root) {
+    if (!root.matches("ytd-playlist-panel-video-renderer")) {
+      return false;
+    }
+
+    return (
+      root.hasAttribute("selected") ||
+      root.hasAttribute("current") ||
+      root.getAttribute("aria-current") === "true"
+    );
+  }
+
   function shouldHideRoot(root, settings) {
-    const watchedSegment = root.querySelector(WATCHED_SEGMENT_SELECTOR);
+    if (isCurrentPlaylistItem(root)) {
+      return false;
+    }
+
+    const watchedSegment = getWatchedSegment(root);
     if (!watchedSegment) {
       return false;
     }
@@ -97,6 +142,35 @@
     return watchedPercent >= settings.thresholdPercent;
   }
 
+  function isFilteringEnabledForRoot(root, settings, pageScope) {
+    switch (pageScope) {
+      case "home":
+        return settings.enabledOnHome;
+      case "subscriptions":
+        return settings.enabledOnSubscriptions;
+      case "playlist":
+        return settings.enabledOnPlaylistPage;
+      case "video":
+        return root.closest(WATCH_PAGE_SUGGESTIONS_SELECTOR) ? settings.enabledOnVideoPage : false;
+      case "watchPlaylist":
+        if (root.closest(WATCH_PAGE_PLAYLIST_SELECTOR)) {
+          return settings.enabledOnWatchPagePlaylist;
+        }
+
+        if (root.closest(WATCH_PAGE_SUGGESTIONS_SELECTOR)) {
+          return settings.enabledOnVideoPage;
+        }
+
+        return false;
+      case "searchResults":
+        return settings.enabledOnSearchResults;
+      case "channelVideos":
+        return settings.enabledOnChannelVideos;
+      default:
+        return false;
+    }
+  }
+
   function applyVisibility(root, shouldHide) {
     root.setAttribute(MANAGED_ATTRIBUTE, "true");
 
@@ -108,24 +182,58 @@
     root.removeAttribute(HIDDEN_ATTRIBUTE);
   }
 
+  function getPageStatus() {
+    return {
+      supported: SUPPORTED_PAGE_SCOPES.has(currentPageScope),
+      hiddenCount: currentHiddenCount,
+      revealActive: pageRevealActive,
+      pageScope: currentPageScope,
+    };
+  }
+
   function scanPage() {
     scanTimerId = null;
+    const pageScope = getPageScope();
+    currentPageScope = pageScope;
 
     if (global.location.href !== lastSeenUrl) {
       lastSeenUrl = global.location.href;
+      pageRevealActive = false;
+      currentHiddenCount = 0;
       clearAllManagedState();
     }
 
-    if (!isEnabledOnCurrentPage(activeSettings)) {
+    if (!activeSettings.enabledGlobally || !SUPPORTED_PAGE_SCOPES.has(pageScope)) {
+      currentHiddenCount = 0;
+      clearAllManagedState();
+      return;
+    }
+
+    if (pageRevealActive) {
+      currentHiddenCount = 0;
       clearAllManagedState();
       return;
     }
 
     ensureStyles();
 
+    let hiddenCount = 0;
+
     getCandidateRoots().forEach((root) => {
-      applyVisibility(root, shouldHideRoot(root, activeSettings));
+      if (!isFilteringEnabledForRoot(root, activeSettings, pageScope)) {
+        clearRootState(root);
+        return;
+      }
+
+      const hideRoot = shouldHideRoot(root, activeSettings);
+      applyVisibility(root, hideRoot);
+
+      if (hideRoot) {
+        hiddenCount += 1;
+      }
     });
+
+    currentHiddenCount = hiddenCount;
   }
 
   function scheduleScan() {
@@ -169,11 +277,28 @@
     });
   }
 
+  function attachMessageListener() {
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      if (message?.type === "yawt:getPageStatus") {
+        sendResponse(getPageStatus());
+        return;
+      }
+
+      if (message?.type === "yawt:revealCurrentPage") {
+        pageRevealActive = true;
+        currentHiddenCount = 0;
+        clearAllManagedState();
+        sendResponse(getPageStatus());
+      }
+    });
+  }
+
   async function start() {
     activeSettings = await readSettings();
     ensureStyles();
     attachNavigationListeners();
     attachMutationObserver();
+    attachMessageListener();
     subscribeToSettingsChanges(async () => {
       activeSettings = await readSettings();
       scheduleScan();
@@ -182,6 +307,6 @@
   }
 
   start().catch((error) => {
-    console.error("YT Already Watched That failed to start.", error);
+    console.error("Stop YouTube Reruns failed to start.", error);
   });
 })(globalThis);

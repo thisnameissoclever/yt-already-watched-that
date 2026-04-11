@@ -1,20 +1,28 @@
 (function initSettings(global) {
+  const LEGACY_STORAGE_KEYS = ["enabledOnWatchPlaylist"];
+  const CHANNEL_VIDEOS_PATH_PATTERN = /^\/(?:@[^/]+|channel\/[^/]+|user\/[^/]+|c\/[^/]+)\/videos\/?$/;
   const STORAGE_KEY_ORDER = [
+    "enabledGlobally",
     "thresholdPercent",
     "enabledOnHome",
     "enabledOnSubscriptions",
     "enabledOnVideoPage",
     "enabledOnPlaylistPage",
-    "enabledOnWatchPlaylist",
+    "enabledOnWatchPagePlaylist",
+    "enabledOnSearchResults",
+    "enabledOnChannelVideos",
   ];
 
   const DEFAULT_SETTINGS = Object.freeze({
+    enabledGlobally: true,
     thresholdPercent: 70,
     enabledOnHome: true,
     enabledOnSubscriptions: true,
     enabledOnVideoPage: true,
     enabledOnPlaylistPage: true,
-    enabledOnWatchPlaylist: true,
+    enabledOnWatchPagePlaylist: true,
+    enabledOnSearchResults: false,
+    enabledOnChannelVideos: true,
   });
 
   function clampThreshold(value) {
@@ -30,6 +38,7 @@
 
   function normalizeSettings(partialSettings = {}) {
     return {
+      enabledGlobally: partialSettings.enabledGlobally ?? DEFAULT_SETTINGS.enabledGlobally,
       thresholdPercent: clampThreshold(partialSettings.thresholdPercent),
       enabledOnHome: partialSettings.enabledOnHome ?? DEFAULT_SETTINGS.enabledOnHome,
       enabledOnSubscriptions:
@@ -37,14 +46,24 @@
       enabledOnVideoPage: partialSettings.enabledOnVideoPage ?? DEFAULT_SETTINGS.enabledOnVideoPage,
       enabledOnPlaylistPage:
         partialSettings.enabledOnPlaylistPage ?? DEFAULT_SETTINGS.enabledOnPlaylistPage,
-      enabledOnWatchPlaylist:
-        partialSettings.enabledOnWatchPlaylist ?? DEFAULT_SETTINGS.enabledOnWatchPlaylist,
+      enabledOnWatchPagePlaylist:
+        partialSettings.enabledOnWatchPagePlaylist ??
+        partialSettings.enabledOnWatchPlaylist ??
+        DEFAULT_SETTINGS.enabledOnWatchPagePlaylist,
+      enabledOnSearchResults:
+        partialSettings.enabledOnSearchResults ?? DEFAULT_SETTINGS.enabledOnSearchResults,
+      enabledOnChannelVideos:
+        partialSettings.enabledOnChannelVideos ?? DEFAULT_SETTINGS.enabledOnChannelVideos,
     };
   }
 
   function getPageScope(url = global.location) {
     const currentUrl = typeof url === "string" ? new URL(url) : new URL(url.href);
     const { pathname, searchParams } = currentUrl;
+
+    if (pathname === "/results") {
+      return "searchResults";
+    }
 
     if (pathname === "/") {
       return "home";
@@ -66,10 +85,18 @@
       return "video";
     }
 
+    if (CHANNEL_VIDEOS_PATH_PATTERN.test(pathname)) {
+      return "channelVideos";
+    }
+
     return "unsupported";
   }
 
   function isEnabledOnCurrentPage(settings, url = global.location) {
+    if (!settings.enabledGlobally) {
+      return false;
+    }
+
     switch (getPageScope(url)) {
       case "home":
         return settings.enabledOnHome;
@@ -80,14 +107,18 @@
       case "playlist":
         return settings.enabledOnPlaylistPage;
       case "watchPlaylist":
-        return settings.enabledOnWatchPlaylist;
+        return settings.enabledOnVideoPage || settings.enabledOnWatchPagePlaylist;
+      case "searchResults":
+        return settings.enabledOnSearchResults;
+      case "channelVideos":
+        return settings.enabledOnChannelVideos;
       default:
         return false;
     }
   }
 
   async function readSettings() {
-    const storedValues = await chrome.storage.sync.get(STORAGE_KEY_ORDER);
+    const storedValues = await chrome.storage.sync.get([...STORAGE_KEY_ORDER, ...LEGACY_STORAGE_KEYS]);
     return normalizeSettings({
       ...DEFAULT_SETTINGS,
       ...storedValues,
@@ -114,7 +145,7 @@
       const changedValues = {};
       let hasRelevantChange = false;
 
-      for (const key of STORAGE_KEY_ORDER) {
+      for (const key of [...STORAGE_KEY_ORDER, ...LEGACY_STORAGE_KEYS]) {
         if (!changes[key]) {
           continue;
         }

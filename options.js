@@ -1,18 +1,22 @@
 (function initOptions(global) {
   const { readSettings, writeSettings } = global.YAWTSettings;
 
+  const enabledGloballyInput = document.getElementById("enabledGlobally");
   const thresholdInput = document.getElementById("thresholdPercent");
   const thresholdValue = document.getElementById("thresholdValue");
 
   const toggleIds = [
     "enabledOnVideoPage",
+    "enabledOnWatchPagePlaylist",
+    "enabledOnSearchResults",
+    "enabledOnChannelVideos",
     "enabledOnSubscriptions",
     "enabledOnHome",
     "enabledOnPlaylistPage",
-    "enabledOnWatchPlaylist",
   ];
 
   function render(settings) {
+    enabledGloballyInput.checked = Boolean(settings.enabledGlobally);
     thresholdInput.value = String(settings.thresholdPercent);
     thresholdValue.textContent = `${settings.thresholdPercent}%`;
 
@@ -24,6 +28,10 @@
 
   async function init() {
     render(await readSettings());
+
+    enabledGloballyInput.addEventListener("change", async (event) => {
+      await writeSettings({ enabledGlobally: event.target.checked });
+    });
 
     thresholdInput.addEventListener("input", async (event) => {
       const thresholdPercent = Number(event.target.value);
