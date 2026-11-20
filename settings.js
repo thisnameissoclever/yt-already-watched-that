@@ -11,6 +11,7 @@
     "enabledOnWatchPagePlaylist",
     "enabledOnSearchResults",
     "enabledOnChannelVideos",
+    "showShortsPublishDates",
   ];
 
   const DEFAULT_SETTINGS = Object.freeze({
@@ -23,6 +24,7 @@
     enabledOnWatchPagePlaylist: true,
     enabledOnSearchResults: false,
     enabledOnChannelVideos: true,
+    showShortsPublishDates: true,
   });
 
   function clampThreshold(value) {
@@ -54,6 +56,8 @@
         partialSettings.enabledOnSearchResults ?? DEFAULT_SETTINGS.enabledOnSearchResults,
       enabledOnChannelVideos:
         partialSettings.enabledOnChannelVideos ?? DEFAULT_SETTINGS.enabledOnChannelVideos,
+      showShortsPublishDates:
+        partialSettings.showShortsPublishDates ?? DEFAULT_SETTINGS.showShortsPublishDates,
     };
   }
 
@@ -119,10 +123,7 @@
 
   async function readSettings() {
     const storedValues = await chrome.storage.sync.get([...STORAGE_KEY_ORDER, ...LEGACY_STORAGE_KEYS]);
-    return normalizeSettings({
-      ...DEFAULT_SETTINGS,
-      ...storedValues,
-    });
+    return normalizeSettings(storedValues);
   }
 
   async function writeSettings(partialSettings) {

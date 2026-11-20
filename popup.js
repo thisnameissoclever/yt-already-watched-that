@@ -8,6 +8,7 @@
   });
 
   const enabledGloballyInput = document.getElementById("enabledGlobally");
+  const showShortsPublishDatesInput = document.getElementById("showShortsPublishDates");
   const thresholdInput = document.getElementById("thresholdPercent");
   const thresholdValue = document.getElementById("thresholdValue");
   const pageStatus = document.getElementById("pageStatus");
@@ -83,12 +84,16 @@
   async function init() {
     const settings = await readSettings();
     enabledGloballyInput.checked = settings.enabledGlobally;
+    showShortsPublishDatesInput.checked = settings.showShortsPublishDates;
     renderThreshold(settings.thresholdPercent);
     await refreshPageStatus();
 
     enabledGloballyInput.addEventListener("change", async (event) => {
       await writeSettings({ enabledGlobally: event.target.checked });
       global.setTimeout(refreshPageStatus, 150);
+    });
+    showShortsPublishDatesInput.addEventListener("change", async (event) => {
+      await writeSettings({ showShortsPublishDates: event.target.checked });
     });
     thresholdInput.addEventListener("input", handleThresholdInput);
     openOptionsButton.addEventListener("click", () => {
