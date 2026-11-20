@@ -10,6 +10,7 @@
     "enabledOnWatchPagePlaylist",
     "enabledOnSearchResults",
     "enabledOnChannelVideos",
+    "showShortsPublishDates",
     "enabledOnSubscriptions",
     "enabledOnHome",
     "enabledOnPlaylistPage",

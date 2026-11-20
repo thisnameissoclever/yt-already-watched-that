@@ -6,6 +6,7 @@ A Chrome extension that hides videos you've already watched from YouTube suggest
 
 - Detects YouTube's watched-progress thumbnail bar and hides matching videos.
 - Supports Home, Subscriptions, video-page suggestions, playlist pages, the playlist widget on video pages, channel videos tabs, and optional search results.
+- Shows regular-video-style publish ages on visible Shorts cards across YouTube, with channel names on Home and Subscriptions.
 - Adds a popup status readout showing how many watched videos are hidden on the current page.
 - Lets you temporarily reveal hidden videos on the current page until that tab refreshes or navigates.
 - Lets you choose a watched threshold from `0%` to `100%` in `10%` steps.
@@ -13,6 +14,8 @@ A Chrome extension that hides videos you've already watched from YouTube suggest
 ## Current settings
 
 - `Filtering enabled`: global on or off toggle
+  - Default: `on`
+- `Show Shorts metadata`: adds regular-video-style metadata to visible Shorts cards
   - Default: `on`
 - `Hide watched videos after`: slider from `0%` to `100%`
   - Default: `70%`
@@ -45,7 +48,7 @@ The currently playing video is always left visible inside the playlist widget.
 1. Open `chrome://extensions`
 2. Enable `Developer mode`
 3. Click `Load unpacked`
-4. Select `C:\Users\myema\OneDrive\Work\Vibes\yt-already-watched-that`
+4. Select the folder containing `manifest.json`.
 
 ## How it works
 
@@ -53,6 +56,13 @@ The extension looks for YouTube's watched-progress marker inside each supported 
 
 - `yt-thumbnail-overlay-progress-bar-view-model`
 - `.ytThumbnailOverlayProgressBarHostWatchedProgressBarSegment`
+- `ytw-thumbnail-overlay-resume-playback-renderer`
 - `ytd-thumbnail-overlay-resume-playback-renderer #progress`
 
-If the watched segment width meets or exceeds your configured threshold, the extension hides the video card from the page layout.
+If the watched segment width meets or exceeds your configured threshold, the extension hides the video card from the page layout. It checks again when YouTube updates the progress bar or reuses the card.
+
+Shorts metadata comes from YouTube's player response and page metadata and is cached in memory while the YouTube tab remains open. Publish times appear as relative ages like `2 days ago`. Home and Subscriptions also show the channel name when available.
+
+## Browser tests
+
+With Playwright and its Chromium browser available locally, run `node --test --test-concurrency=1 tests/extension.test.cjs`. Set `YAWT_EXTENSION_DIR` to test an extracted release package. Set `YAWT_CHROMIUM_PATH` if using a Chromium executable outside Playwright's default installation.
