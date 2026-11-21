@@ -1,6 +1,6 @@
 (function initSettings(global) {
   const LEGACY_STORAGE_KEYS = ["enabledOnWatchPlaylist"];
-  const CHANNEL_VIDEOS_PATH_PATTERN = /^\/(?:@[^/]+|channel\/[^/]+|user\/[^/]+|c\/[^/]+)\/videos\/?$/;
+  const CHANNEL_VIDEO_PAGE_PATH_PATTERN = /^\/(?:@[^/]+|channel\/[^/]+|user\/[^/]+|c\/[^/]+)(?:\/(?:featured|videos))?\/?$/;
   const STORAGE_KEY_ORDER = [
     "enabledGlobally",
     "thresholdPercent",
@@ -89,7 +89,7 @@
       return "video";
     }
 
-    if (CHANNEL_VIDEOS_PATH_PATTERN.test(pathname)) {
+    if (CHANNEL_VIDEO_PAGE_PATH_PATTERN.test(pathname)) {
       return "channelVideos";
     }
 
