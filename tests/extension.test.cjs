@@ -182,6 +182,63 @@ test("channel Videos supports handle and legacy URL forms", async () => {
   await setSettings({ enabledOnChannelVideos: true });
 });
 
+test("channel Home filters the Popular videos shelf and reports it in the popup", async () => {
+  await setSettings({ thresholdPercent: 20, enabledOnHome: false });
+  const shelf = '<ytd-shelf-renderer><h2>Popular videos</h2>' +
+    '<yt-horizontal-list-renderer><div id="items">' +
+    card("yt-lockup-view-model", "watched", "lockup", 100) +
+    card("yt-lockup-view-model", "at_threshold", "lockup", 20) +
+    card("yt-lockup-view-model", "below_threshold", "lockup", 19) +
+    card("yt-lockup-view-model", "unwatched", "lockup", null) +
+    '</div></yt-horizontal-list-renderer></ytd-shelf-renderer>';
+  await openYouTube("/channel/UCkdgAA0rfK7lG5dv4o__Paw", shelf);
+  const popup = await browser.newPage();
+  try {
+    await popup.goto(extensionUrl + "/popup.html");
+    await youtube.bringToFront();
+    await popup.reload();
+    const status = popup.locator("#pageStatus");
+    await status.filter({
+      hasText: /2 watched videos hidden|This page is not currently filterable/,
+    }).waitFor();
+    assert.equal(await status.textContent(), "2 watched videos hidden on this page.");
+    await expectHidden("watched", true);
+    await expectHidden("at_threshold", true);
+    await expectHidden("below_threshold", false);
+    await expectHidden("unwatched", false);
+
+    await popup.locator("#revealHidden").click();
+    await expectHidden("watched", false);
+    await expectHidden("at_threshold", false);
+    await youtube.evaluate(() => {
+      history.pushState(null, "", "/@fixture/videos");
+      dispatchEvent(new Event("yt-navigate-finish"));
+    });
+    await expectHidden("watched", true);
+
+    for (const url of ["/@fixture", "/@fixture/featured", "/channel/fixture/featured/",
+      "/user/fixture", "/c/fixture/"]) {
+      await openYouTube(url, shelf);
+      await expectHidden("watched", true);
+    }
+
+    await setSettings({ enabledOnChannelVideos: false });
+    await expectHidden("watched", false);
+    await setSettings({ enabledOnChannelVideos: true });
+    await expectHidden("watched", true);
+    await youtube.evaluate(() => {
+      history.pushState(null, "", "/@fixture/posts");
+      dispatchEvent(new Event("yt-navigate-finish"));
+    });
+    await expectHidden("watched", false);
+    await popup.reload();
+    await popup.getByText("This page is not currently filterable.", { exact: true }).waitFor();
+  } finally {
+    await popup.close();
+    await setSettings({ thresholdPercent: 70, enabledOnHome: true, enabledOnChannelVideos: true });
+  }
+});
+
 test("watch-page recommendations and playlist toggles are independent", async () => {
   const watch = '<ytd-watch-next-secondary-results-renderer>' +
     card("yt-lockup-view-model", "recommendation") + '</ytd-watch-next-secondary-results-renderer>';

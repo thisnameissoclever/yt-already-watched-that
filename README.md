@@ -1,11 +1,11 @@
 # Stop YouTube Reruns
 
-A Chrome extension that hides videos you've already watched from YouTube suggestions, feeds, channel video tabs, search results, and playlists.
+A Chrome extension that hides videos you've already watched from YouTube suggestions, feeds, channel Home and Videos tabs, search results, and playlists.
 
 ## What it does
 
 - Detects YouTube's watched-progress thumbnail bar and hides matching videos.
-- Supports Home, Subscriptions, video-page suggestions, playlist pages, the playlist widget on video pages, channel videos tabs, and optional search results.
+- Supports Home, Subscriptions, video-page suggestions, playlist pages, the playlist widget on video pages, channel Home and Videos tabs, and optional search results.
 - Shows regular-video-style publish ages on visible Shorts cards across YouTube, with channel names on Home and Subscriptions.
 - Adds a popup status readout showing how many watched videos are hidden on the current page.
 - Lets you temporarily reveal hidden videos on the current page until that tab refreshes or navigates.
@@ -26,7 +26,7 @@ A Chrome extension that hides videos you've already watched from YouTube suggest
   - Playlist on video page
   - Search results
     - Default: `off`
-  - Channel videos tab
+  - Channel Home and Videos
     - Default: `on`
   - Subscriptions feed
   - Home feed
@@ -34,6 +34,8 @@ A Chrome extension that hides videos you've already watched from YouTube suggest
 
 On a video page with a playlist open, `Video page suggestions` controls the suggestions rail and `Playlist on video page` controls only the playlist widget above it.
 The currently playing video is always left visible inside the playlist widget.
+
+The channel setting covers video shelves such as Popular videos on a channel's Home tab and the uploads on its Videos tab.
 
 ## Project files
 
