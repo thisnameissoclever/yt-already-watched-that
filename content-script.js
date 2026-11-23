@@ -43,6 +43,17 @@
   const SHORTS_VIDEO_ID_ATTRIBUTE = "data-yawt-shorts-video-id";
   const SHORTS_CHANNEL_NAME_CLASS = "yawt-shorts-channel-name";
   const SHORTS_EXTRA_METADATA_CLASS = "yawt-shorts-extra-metadata";
+  const SHORTS_DURATION_CLASS = "yawt-shorts-duration";
+  const SHORTS_DURATION_TEXT_CLASS = "yawt-shorts-duration-text";
+  const SHORTS_SHELF_LINK_CLASS = "yawt-shorts-shelf-link";
+  const SHORTS_SHELF_TITLE_ATTRIBUTE = "data-yawt-native-shorts-shelf-title";
+  const SHORTS_METADATA_ELEMENTS = [
+    SHORTS_CHANNEL_NAME_CLASS,
+    SHORTS_EXTRA_METADATA_CLASS,
+    SHORTS_DURATION_CLASS,
+    SHORTS_DURATION_TEXT_CLASS,
+  ].map((className) => "." + className).join(", ");
+  const CHANNEL_HOME_PATH = /^\/(@[^/]+|(?:channel|user|c)\/[^/]+)(?:\/featured)?\/?$/;
   const SHORTS_AGE_ATTRIBUTE = "data-yawt-shorts-age";
   const SHORTS_METADATA_FETCH_CONCURRENCY = 2;
   const STYLE_ELEMENT_ID = "yawt-extension-style";
@@ -91,6 +102,50 @@
         line-height: 1.6rem;
         margin-top: 2px;
       }
+
+      a.${SHORTS_CHANNEL_NAME_CLASS} {
+        width: fit-content;
+        max-width: 100%;
+      }
+
+      a.${SHORTS_CHANNEL_NAME_CLASS},
+      .${SHORTS_SHELF_LINK_CLASS} {
+        color: var(--yt-spec-call-to-action, #065fd4);
+        text-decoration: underline;
+        text-underline-offset: 2px;
+        overflow-wrap: anywhere;
+      }
+
+      html[dark] a.${SHORTS_CHANNEL_NAME_CLASS},
+      html[dark] .${SHORTS_SHELF_LINK_CLASS} {
+        color: var(--yt-spec-call-to-action, #8ab4f8);
+      }
+
+      [${SHORTS_SHELF_TITLE_ATTRIBUTE}] {
+        display: none !important;
+      }
+
+      .${SHORTS_DURATION_CLASS} {
+        position: absolute;
+        inset: auto 7px 7px auto;
+        z-index: 1;
+        padding: 3px 5px;
+        border-radius: 4px;
+        background: #101218;
+        color: #fff;
+        font: 600 12px/1.2 Roboto, Arial, sans-serif;
+        font-variant-numeric: tabular-nums;
+        pointer-events: none;
+      }
+
+      .${SHORTS_DURATION_TEXT_CLASS} {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
     `;
     document.documentElement.appendChild(styleElement);
   }
@@ -107,11 +162,11 @@
   }
 
   function clearAllShortsMetadataState() {
-    document
-      .querySelectorAll(`.${SHORTS_CHANNEL_NAME_CLASS}, .${SHORTS_EXTRA_METADATA_CLASS}`)
-      .forEach((element) => {
-        element.remove();
-      });
+    clearShortsMetadataElements(document);
+    document.querySelectorAll(`.${SHORTS_SHELF_LINK_CLASS}`).forEach((link) => link.remove());
+    document.querySelectorAll(`[${SHORTS_SHELF_TITLE_ATTRIBUTE}]`).forEach((title) => {
+      title.removeAttribute(SHORTS_SHELF_TITLE_ATTRIBUTE);
+    });
 
     document.querySelectorAll(`[${SHORTS_AGE_ATTRIBUTE}]`).forEach(removeShortsSubheadAge);
 
@@ -140,11 +195,7 @@
   }
 
   function clearShortsMetadataElements(root) {
-    root
-      .querySelectorAll(`.${SHORTS_CHANNEL_NAME_CLASS}, .${SHORTS_EXTRA_METADATA_CLASS}`)
-      .forEach((element) => {
-        element.remove();
-      });
+    root.querySelectorAll(SHORTS_METADATA_ELEMENTS).forEach((element) => element.remove());
   }
 
   function getCandidateRoots() {
@@ -216,6 +267,7 @@
     }
 
     ensureStyles();
+    syncChannelHomeShortsShelf();
 
     document.querySelectorAll(`[${SHORTS_VIDEO_ID_ATTRIBUTE}]`).forEach((root) => {
       if (root.getAttribute(SHORTS_VIDEO_ID_ATTRIBUTE) !== getShortsVideoId(root)) {
@@ -260,53 +312,136 @@
     }
 
     const publishedAgoText = formatShortsPublishedAgo(metadata.publishDate);
-    const shouldShowChannelName = shouldRenderShortsChannelName(pageScope) && metadata.channelName;
-
-    if (!publishedAgoText && !shouldShowChannelName) {
-      removeShortsMetadata(root);
-      return;
-    }
+    const channelName = shouldRenderShortsChannelName(pageScope) ? metadata.channelName : null;
 
     root.setAttribute(SHORTS_METADATA_ATTRIBUTE, "true");
-    renderShortsChannelName(root, shouldShowChannelName ? metadata.channelName : null);
+    renderShortsChannelName(root, channelName, metadata.channelUrl);
+    renderShortsDuration(root, metadata.durationSeconds);
     renderShortsPublishedAgo(root, publishedAgoText);
   }
 
-  function renderShortsChannelName(root, channelName) {
-    const existingElement = root.querySelector(`.${SHORTS_CHANNEL_NAME_CLASS}`);
+  function renderShortsChannelName(root, channelName, channelUrl) {
+    let element = root.querySelector(`.${SHORTS_CHANNEL_NAME_CLASS}`);
     if (!channelName) {
-      existingElement?.remove();
+      element?.remove();
       return;
     }
 
-    const subhead = getShortsMetadataSubhead(root);
-    let element = existingElement;
-    if (!element) {
-      element = document.createElement("div");
+    const tag = channelUrl ? "a" : "span";
+    if (element?.localName !== tag) {
+      element?.remove();
+      element = document.createElement(tag);
       element.className = SHORTS_CHANNEL_NAME_CLASS;
     }
 
-    if (element.textContent !== channelName) {
+    if (channelUrl) {
+      setShortsLink(element, channelName, channelUrl);
+    } else if (element.textContent !== channelName) {
       element.textContent = channelName;
-      element.title = channelName;
     }
 
     if (element.isConnected) {
       return;
     }
 
-    if (subhead?.parentElement) {
-      subhead.insertAdjacentElement("beforebegin", element);
-      return;
-    }
-
+    const subhead = getShortsMetadataSubhead(root);
     const title = root.querySelector("h3");
-    if (title?.parentElement) {
+    const containingLink = (subhead ?? title)?.closest("a");
+    if (containingLink && root.contains(containingLink)) {
+      containingLink.insertAdjacentElement("afterend", element);
+    } else if (subhead) {
+      subhead.insertAdjacentElement("beforebegin", element);
+    } else if (title) {
       title.insertAdjacentElement("afterend", element);
+    } else {
+      root.appendChild(element);
+    }
+  }
+
+  function setShortsLink(link, channelName, channelUrl) {
+    const label = `${channelName}’s Shorts`;
+    if (link.textContent !== label) {
+      link.textContent = label;
+    }
+    if (link.href !== channelUrl) {
+      link.href = channelUrl;
+    }
+  }
+
+  function syncChannelHomeShortsShelf() {
+    const channelHome = global.location.pathname.match(CHANNEL_HOME_PATH);
+    if (!channelHome) {
       return;
     }
 
-    root.appendChild(element);
+    const channelUrl = `${global.location.origin}/${channelHome[1]}/shorts`;
+    document.querySelectorAll('ytd-browse[page-subtype="channels"]:not([hidden])').forEach((browse) => {
+      const channelName = browse.querySelector("h1.dynamicTextViewModelH1, ytd-c4-tabbed-header-renderer #channel-name")
+        ?.textContent.trim();
+      if (!channelName) {
+        return;
+      }
+
+      browse.querySelectorAll("ytd-reel-shelf-renderer").forEach((shelf) => {
+        const title = shelf.querySelector("h2 #title");
+        let link = shelf.querySelector(`.${SHORTS_SHELF_LINK_CLASS}`);
+        if (!title || title.querySelector("a") || title.closest("a") || !shelf.querySelector(SHORTS_LINK_SELECTOR)) {
+          link?.remove();
+          title?.removeAttribute(SHORTS_SHELF_TITLE_ATTRIBUTE);
+          return;
+        }
+
+        if (link?.previousElementSibling !== title) {
+          link?.remove();
+          link = document.createElement("a");
+          link.className = SHORTS_SHELF_LINK_CLASS;
+          const { fontSize, fontWeight, lineHeight } = global.getComputedStyle(title);
+          Object.assign(link.style, { fontSize, fontWeight, lineHeight });
+          title.insertAdjacentElement("afterend", link);
+        }
+        setShortsLink(link, channelName, channelUrl);
+        title.setAttribute(SHORTS_SHELF_TITLE_ATTRIBUTE, "");
+      });
+    });
+  }
+
+  function renderShortsDuration(root, durationSeconds) {
+    const thumbnail = root.querySelector("yt-thumbnail-view-model, ytd-thumbnail");
+    let badge = root.querySelector(`.${SHORTS_DURATION_CLASS}`);
+    let description = root.querySelector(`.${SHORTS_DURATION_TEXT_CLASS}`);
+    if (!thumbnail || !durationSeconds) {
+      badge?.remove();
+      description?.remove();
+      return;
+    }
+
+    if (!badge) {
+      badge = document.createElement("span");
+      badge.className = SHORTS_DURATION_CLASS;
+      badge.setAttribute("aria-hidden", "true");
+    }
+    if (badge.parentElement !== thumbnail) {
+      thumbnail.appendChild(badge);
+    }
+    if (!description) {
+      description = document.createElement("span");
+      description.className = SHORTS_DURATION_TEXT_CLASS;
+      root.appendChild(description);
+    }
+
+    const duration = formatShortsDuration(durationSeconds);
+    if (badge.textContent !== duration) {
+      badge.textContent = duration;
+    }
+    const descriptionText = `Duration ${duration}`;
+    if (description.textContent !== descriptionText) {
+      description.textContent = descriptionText;
+    }
+  }
+
+  function formatShortsDuration(seconds) {
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
   }
 
   function renderShortsPublishedAgo(root, publishedAgoText) {
@@ -417,7 +552,7 @@
   }
 
   function shouldRenderShortsChannelName(pageScope) {
-    return pageScope === "home" || pageScope === "subscriptions";
+    return pageScope === "home" || pageScope === "subscriptions" || pageScope === "searchResults";
   }
 
   function enqueueShortsMetadataFetch(videoId) {
@@ -460,7 +595,8 @@
     const playerMetadata = config
       ? await fetchShortsMetadataFromPlayer(videoId, config).catch(() => null)
       : null;
-    if (playerMetadata?.publishDate && playerMetadata.channelName) {
+    if (playerMetadata?.publishDate && playerMetadata.channelName &&
+        playerMetadata.channelUrl && playerMetadata.durationSeconds) {
       return playerMetadata;
     }
 
@@ -477,6 +613,8 @@
     return {
       publishDate: playerMetadata?.publishDate ?? pageMetadata?.publishDate,
       channelName: playerMetadata?.channelName ?? pageMetadata?.channelName,
+      channelUrl: playerMetadata?.channelUrl ?? pageMetadata?.channelUrl,
+      durationSeconds: playerMetadata?.durationSeconds ?? pageMetadata?.durationSeconds,
     };
   }
 
@@ -536,19 +674,46 @@
       return null;
     }
 
-    const playerResponse = await response.json();
-    const microformat = playerResponse.microformat?.playerMicroformatRenderer;
-    const publishDate = microformat?.publishDate ?? microformat?.uploadDate ?? null;
-    const channelName = microformat?.ownerChannelName ?? playerResponse.videoDetails?.author ?? null;
+    const metadata = readShortsPlayerMetadata(await response.json(), videoId);
+    return metadata && Object.values(metadata).some(Boolean) ? metadata : null;
+  }
 
-    if (!publishDate && !channelName) {
+  function readShortsPlayerMetadata(response, videoId) {
+    const details = response?.videoDetails;
+    if (details?.videoId && details.videoId !== videoId) {
       return null;
     }
 
-    return {
-      channelName,
-      publishDate,
-    };
+    const microformat = response?.microformat?.playerMicroformatRenderer;
+    const publishDate = nonBlankString(microformat?.publishDate) ?? nonBlankString(microformat?.uploadDate);
+    const channelName = nonBlankString(microformat?.ownerChannelName) ?? nonBlankString(details?.author);
+    const channelUrl = getCreatorShortsUrl(microformat?.ownerProfileUrl, details?.channelId ?? microformat?.externalChannelId);
+    const length = details?.lengthSeconds ?? microformat?.lengthSeconds;
+    const seconds = typeof length === "number" || /^\d+$/.test(length) ? Number(length) : null;
+    const durationSeconds = Number.isSafeInteger(seconds) && seconds > 0 ? seconds : null;
+    return { publishDate, channelName, channelUrl, durationSeconds };
+  }
+
+  function nonBlankString(value) {
+    return typeof value === "string" ? value.trim() || null : null;
+  }
+
+  function getCreatorShortsUrl(profileUrl, channelId) {
+    if (profileUrl) {
+      try {
+        const url = new URL(profileUrl, global.location.origin);
+        const channelPath = url.pathname.match(/^\/(@[^/]+|channel\/UC[\w-]{22})\/?$/);
+        if (url.hostname === "www.youtube.com" && /^https?:$/.test(url.protocol) && channelPath) {
+          return `${global.location.origin}/${channelPath[1]}/shorts`;
+        }
+      } catch (_error) {
+        // An invalid profile URL can still have a valid channel ID.
+      }
+    }
+
+    return /^UC[\w-]{22}$/.test(channelId)
+      ? `${global.location.origin}/channel/${channelId}/shorts`
+      : null;
   }
 
   async function fetchShortsMetadataFromPage(videoId) {
@@ -561,38 +726,67 @@
     }
 
     const pageHtml = await response.text();
-    const publishDate = extractJsonStringValue(pageHtml, "publishDate") ?? extractJsonStringValue(pageHtml, "uploadDate");
-    const channelName = extractJsonStringValue(pageHtml, "ownerChannelName");
-
-    if (!publishDate && !channelName) {
+    const metadata = readShortsPlayerMetadata(extractShortsPagePlayerResponse(pageHtml), videoId);
+    if (!metadata) {
       return null;
     }
 
-    return {
-      channelName,
-      publishDate,
-    };
+    const publishDate = metadata.publishDate ??
+      extractJsonStringValue(pageHtml, "publishDate") ?? extractJsonStringValue(pageHtml, "uploadDate");
+    const channelName = metadata.channelName ?? extractJsonStringValue(pageHtml, "ownerChannelName");
+    return { ...metadata, channelName, publishDate };
+  }
+
+  function extractShortsPagePlayerResponse(pageHtml) {
+    const assignment = /\bytInitialPlayerResponse\s*=\s*(?=\{)/.exec(pageHtml);
+    if (!assignment) {
+      return null;
+    }
+
+    const start = assignment.index + assignment[0].length;
+    const end = pageHtml.indexOf("</script>", start);
+    const script = pageHtml.slice(start, end === -1 ? undefined : end);
+    let depth = 0;
+    // Match each quoted string as one token so braces in video text are ignored.
+    for (const token of script.matchAll(/"(?:[^"\\]|\\.)*"|[{}]/g)) {
+      if (token[0] === "{") {
+        depth += 1;
+      } else if (token[0] === "}" && --depth === 0) {
+        try {
+          return JSON.parse(script.slice(0, token.index + 1));
+        } catch (_error) {
+          return null;
+        }
+      }
+    }
+    return null;
   }
 
   function extractJsonStringValue(text, key) {
-    const jsonString = text.match(new RegExp(String.raw`"${key}"\s*:\s*("(?:[^"\\]|\\.)*")`));
-    if (jsonString) {
-      return JSON.parse(jsonString[1]);
+    const pattern = new RegExp(String.raw`"${key}"\s*:\s*("(?:[^"\\]|\\.)*")`, "g");
+    for (const match of text.matchAll(pattern)) {
+      const value = nonBlankString(decodeJsonStringValue(match[1].slice(1, -1)));
+      if (value) {
+        return value;
+      }
     }
 
     const markers = [`"${key}":"`, `\\"${key}\\":\\"`];
 
     for (const marker of markers) {
-      const startIndex = text.indexOf(marker);
-      if (startIndex < 0) {
-        continue;
-      }
-
-      const valueStartIndex = startIndex + marker.length;
       const endMarker = marker.startsWith("\\") ? '\\"' : '"';
-      const valueEndIndex = text.indexOf(endMarker, valueStartIndex);
-      if (valueEndIndex > valueStartIndex) {
-        return decodeJsonStringValue(text.slice(valueStartIndex, valueEndIndex));
+      let startIndex = text.indexOf(marker);
+      while (startIndex !== -1) {
+        const valueStartIndex = startIndex + marker.length;
+        const valueEndIndex = text.indexOf(endMarker, valueStartIndex);
+        if (valueEndIndex === -1) {
+          break;
+        }
+        const value = nonBlankString(decodeJsonStringValue(text.slice(valueStartIndex, valueEndIndex)));
+        if (value) {
+          return value;
+        }
+        startIndex = text.indexOf(marker, valueEndIndex + endMarker.length);
       }
     }
 
@@ -760,6 +954,7 @@
       pageRevealActive = false;
       currentHiddenCount = 0;
       clearAllManagedState();
+      clearAllShortsMetadataState();
     }
 
     syncShortsMetadata(activeSettings, pageScope);

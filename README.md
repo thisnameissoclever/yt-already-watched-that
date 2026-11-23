@@ -6,7 +6,8 @@ A Chrome extension that hides videos you've already watched from YouTube suggest
 
 - Detects YouTube's watched-progress thumbnail bar and hides matching videos.
 - Supports Home, Subscriptions, video-page suggestions, playlist pages, the playlist widget on video pages, channel Home and Videos tabs, and optional search results.
-- Shows regular-video-style publish ages on visible Shorts cards across YouTube, with channel names on Home and Subscriptions.
+- Shows publish ages and thumbnail duration badges on visible Shorts cards when YouTube provides that information.
+- Links creator names to their Shorts tabs in search, Home, and Subscriptions. On a channel's Home tab, the Shorts shelf heading links to the channel's Shorts tab.
 - Adds a popup status readout showing how many watched videos are hidden on the current page.
 - Lets you temporarily reveal hidden videos on the current page until that tab refreshes or navigates.
 - Lets you choose a watched threshold from `0%` to `100%` in `10%` steps.
@@ -63,7 +64,7 @@ The extension looks for YouTube's watched-progress marker inside each supported 
 
 If the watched segment width meets or exceeds your configured threshold, the extension hides the video card from the page layout. It checks again when YouTube updates the progress bar or reuses the card.
 
-Shorts metadata comes from YouTube's player response and page metadata and is cached in memory while the YouTube tab remains open. Publish times appear as relative ages like `2 days ago`. Home and Subscriptions also show the channel name when available.
+The extension reads Shorts metadata from YouTube's player response and Short pages. It caches the results in memory while the browser tab is open. A Short can show a publish age like `2 days ago` and a duration badge like `0:42`. If YouTube supplies a creator name without a channel address, the name appears as plain text. The dedicated Shorts tab identifies the creator in the page heading.
 
 ## Browser tests
 
