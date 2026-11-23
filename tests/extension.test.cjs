@@ -35,6 +35,8 @@ function card(tag, id, format = "lockup", percent = 90, attributes = "") {
 
 function short(id) {
   return '<yt-shorts-lockup-view-model id="' + id + '">' +
+    '<a class="reel-item-endpoint" aria-hidden="true" href="/shorts/' + id + '">' +
+    '<yt-thumbnail-view-model style="position:relative;width:160px;height:240px"></yt-thumbnail-view-model></a>' +
     '<h3><a href="/shorts/' + id + '">Short</a></h3>' +
     '<div class="shortsLockupViewModelHostMetadataSubhead" title="Original title">' +
     '<span>123 views</span></div></yt-shorts-lockup-view-model>';
@@ -89,16 +91,60 @@ before(async () => {
       });
     } else if (url.pathname === "/youtubei/v1/player") {
       metadataRequests.push("player");
-      await route.fulfill({ json: { videoDetails: { author: "Fixture Channel" } } });
+      const { videoId } = request.postDataJSON();
+      const videoDetails = { videoId, author: "Fixture Channel" };
+      if (videoId === "player_short") {
+        videoDetails.channelId = "UC1234567890123456789012";
+        videoDetails.lengthSeconds = "65";
+      }
+      await route.fulfill({ json: { videoDetails, microformat: {
+        playerMicroformatRenderer: videoId === "player_short" ? { publishDate: "2020-01-02" } : {},
+      } } });
     } else if (url.pathname.startsWith("/shorts/")) {
       metadataRequests.push(url.pathname);
       if (url.pathname === "/shorts/short_page_unavailable") {
         await route.abort("failed");
-      } else {
+      } else if (url.pathname === "/shorts/legacy_short") {
         await route.fulfill({
           contentType: "text/html",
-          body: '<script>var ytInitialPlayerResponse = {"publishDate": "2020-01-02", ' +
-            '"ownerChannelName": "Page Channel"};</script>',
+          body: '<script>var ytInitialPlayerResponse = {"publishDate":"2020-01-02","ownerChannelName":"Legacy Channel"};</script>',
+        });
+      } else if (url.pathname === "/shorts/partial_page_short") {
+        const response = {
+          videoDetails: { videoId: "partial_page_short", lengthSeconds: "43", author: "" },
+          microformat: { playerMicroformatRenderer: {
+            publishDate: "", ownerChannelName: " ", ownerProfileUrl: "http://www.youtube.com/@PartialChannel",
+          } },
+          title: 'A brace and a quote in the title: };"',
+        };
+        await route.fulfill({
+          contentType: "text/html",
+          body: "<script>var ytInitialPlayerResponse = " + JSON.stringify(response) + "; window.playerReady = true;</script>" +
+            '<script>var pageMetadata = {"uploadDate":"2020-01-02","ownerChannelName":"Partial Channel"};</script>',
+        });
+      } else if (url.pathname === "/shorts/mismatched_short") {
+        await route.fulfill({
+          contentType: "text/html",
+          body: '<script>var ytInitialPlayerResponse = {"videoDetails":{"videoId":"different_short","lengthSeconds":"98"},' +
+            '"publishDate":"2020-01-02","ownerChannelName":"Wrong Channel"}; window.playerReady = true;</script>',
+        });
+      } else {
+        const videoId = url.pathname.slice("/shorts/".length);
+        const videoDetails = { videoId, lengthSeconds: videoId === "replacement_short" ? "121" : "42" };
+        const playerMicroformatRenderer = {
+          publishDate: "2020-01-02",
+          ownerChannelName: "Page Channel",
+          ownerProfileUrl: "http://www.youtube.com/@PageChannel",
+        };
+        if (videoId === "invalid_short") {
+          videoDetails.lengthSeconds = "0";
+          playerMicroformatRenderer.ownerProfileUrl = "https://example.com/@PageChannel";
+        }
+        const response = { videoDetails, microformat: { playerMicroformatRenderer } };
+        await route.fulfill({
+          contentType: "text/html",
+          body: '<script>var ytInitialPlayerResponse = null;</script>' +
+            '<script>var ytInitialPlayerResponse = ' + JSON.stringify(response) + ";</script>",
         });
       }
     } else {
@@ -313,13 +359,17 @@ test("Shorts combines player and page metadata and restores YouTube's text and t
     '"INNERTUBE_CLIENT_VERSION":"fixture"};</script>' + short("short_fixture"));
   const subhead = youtube.locator("#short_fixture .shortsLockupViewModelHostMetadataSubhead");
   await youtube.getByText(/123 views.*years ago/).waitFor();
-  await youtube.getByText("Fixture Channel", { exact: true }).waitFor();
+  const creator = youtube.getByRole("link", { name: /Fixture Channel.*Shorts/ });
+  await creator.waitFor();
+  assert.match(await creator.getAttribute("href"), /\/@PageChannel\/shorts$/);
+  await youtube.getByText("0:42", { exact: true }).waitFor();
   assert.deepEqual(metadataRequests, ["player", "/shorts/short_fixture"]);
   await options.reload();
   await options.locator("#showShortsPublishDates").uncheck();
   await youtube.getByText("123 views", { exact: true }).waitFor();
   assert.equal(await subhead.getAttribute("title"), "Original title");
-  assert.equal(await youtube.getByText("Fixture Channel", { exact: true }).count(), 0);
+  assert.equal(await creator.count(), 0);
+  assert.equal(await youtube.getByText("0:42", { exact: true }).count(), 0);
 });
 
 test("Shorts keeps available player metadata when the page request fails", async () => {
@@ -336,17 +386,92 @@ test("Shorts keeps native metadata when YouTube reuses a card", async () => {
   const subhead = youtube.locator("#reused_short .shortsLockupViewModelHostMetadataSubhead");
   await youtube.getByText(/123 views.*years ago/).waitFor();
   await youtube.locator("#reused_short").evaluate((root) => {
-    root.querySelector("a").href = "/shorts/replacement_short";
+    root.querySelectorAll("a").forEach((link) => { link.href = "/shorts/replacement_short"; });
     const subhead = root.querySelector(".shortsLockupViewModelHostMetadataSubhead");
     subhead.title = "Replacement title";
     subhead.querySelector("span").innerHTML = "<em>456 views</em>";
   });
   await youtube.getByText(/456 views.*years ago/).waitFor();
+  await youtube.getByText("2:01", { exact: true }).waitFor();
+  assert.equal(await youtube.getByText("0:42", { exact: true }).count(), 0);
   await setSettings({ showShortsPublishDates: false });
   await subhead.and(youtube.locator('[title="Replacement title"]')).waitFor();
   assert.equal(await subhead.textContent(), "456 views");
   assert.equal(await subhead.getAttribute("title"), "Replacement title");
   assert.equal(await subhead.locator("em").count(), 1);
+  assert.equal(await youtube.getByText("2:01", { exact: true }).count(), 0);
+});
+
+test("Search Shorts link directly to the creator’s Shorts and keep their playback links", async () => {
+  metadataRequests = [];
+  await setSettings({ showShortsPublishDates: true, enabledOnSearchResults: false });
+  await openYouTube("/results?search_query=woodworking", '<script>window.fixture={"INNERTUBE_API_KEY":"fixture",' +
+    '"INNERTUBE_CLIENT_VERSION":"fixture"};</script>' + '<grid-shelf-view-model>' +
+    short("player_short").replaceAll("yt-shorts-lockup-view-model", "ytm-shorts-lockup-view-model") +
+    "</grid-shelf-view-model>");
+  const creator = youtube.getByRole("link", { name: /Fixture Channel.*Shorts/ });
+  await creator.waitFor();
+  assert.match(await creator.getAttribute("href"), /\/channel\/UC1234567890123456789012\/shorts$/);
+  await youtube.locator("yt-thumbnail-view-model").getByText("1:05", { exact: true }).waitFor();
+  assert.equal(await youtube.getByRole("link", { name: /^Short/ }).getAttribute("href"), "/shorts/player_short");
+  assert.deepEqual(metadataRequests, ["player"]);
+});
+
+test("Channel Home links the shelf once and restores its heading on the Shorts tab and when disabled", async () => {
+  await setSettings({ showShortsPublishDates: true });
+  await openYouTube("/@PageChannel/featured", '<ytd-browse page-subtype="channels">' +
+    '<h1 class="dynamicTextViewModelH1">Page Channel</h1>' +
+    '<ytd-reel-shelf-renderer><h2><div id="title-text"><yt-formatted-string id="title">' +
+    "Shorts</yt-formatted-string></div></h2>" + short("channel_short") +
+    "</ytd-reel-shelf-renderer></ytd-browse>");
+  const heading = youtube.getByRole("heading", { level: 2 });
+  const creator = heading.getByRole("link", { name: /Page Channel.*Shorts/ });
+  await creator.waitFor();
+  assert.match(await creator.getAttribute("href"), /\/@PageChannel\/shorts$/);
+  await youtube.getByText("0:42", { exact: true }).waitFor();
+  assert.equal(await youtube.getByRole("link", { name: /Page Channel.*Shorts/ }).count(), 1);
+  await youtube.evaluate(() => {
+    history.pushState(null, "", "/@PageChannel/shorts");
+    dispatchEvent(new Event("yt-navigate-finish"));
+  });
+  await creator.waitFor({ state: "detached" });
+  await heading.getByText("Shorts", { exact: true }).waitFor();
+  await youtube.getByText("0:42", { exact: true }).waitFor();
+  await youtube.evaluate(() => {
+    history.pushState(null, "", "/@PageChannel");
+    dispatchEvent(new Event("yt-navigate-finish"));
+  });
+  await creator.waitFor();
+  await setSettings({ showShortsPublishDates: false });
+  await creator.waitFor({ state: "detached" });
+  await heading.getByText("Shorts", { exact: true }).waitFor();
+  assert.equal(await youtube.getByText("0:42", { exact: true }).count(), 0);
+});
+
+test("Search Shorts keep native metadata when duration or a safe creator destination is missing", async () => {
+  await setSettings({ showShortsPublishDates: true });
+  await openYouTube("/results", short("invalid_short"));
+  await youtube.getByText("Page Channel", { exact: true }).waitFor();
+  await youtube.getByText(/123 views.*years ago/).waitFor();
+  assert.equal(await youtube.getByRole("link", { name: /Page Channel/ }).count(), 0);
+  assert.equal(await youtube.locator("yt-thumbnail-view-model").textContent(), "");
+});
+
+test("Short pages preserve legacy metadata and fill gaps in partial player responses", async () => {
+  await setSettings({ showShortsPublishDates: true });
+  await openYouTube("/results", short("legacy_short") + short("partial_page_short") + short("mismatched_short"));
+  const legacy = youtube.locator("#legacy_short");
+  const partial = youtube.locator("#partial_page_short");
+  await legacy.getByText("Legacy Channel", { exact: true }).waitFor();
+  await legacy.getByText(/123 views.*years ago/).waitFor();
+  const creator = partial.getByRole("link", { name: /Partial Channel.*Shorts/ });
+  await creator.waitFor();
+  assert.match(await creator.getAttribute("href"), /\/@PartialChannel\/shorts$/);
+  await partial.getByText("0:43", { exact: true }).waitFor();
+  await partial.getByText(/123 views.*years ago/).waitFor();
+  const mismatch = youtube.locator("#mismatched_short");
+  await mismatch.and(youtube.locator("[data-yawt-shorts-metadata]")).waitFor({ state: "attached" });
+  assert.equal(await mismatch.textContent(), "Short123 views");
 });
 
 test("older saved playlist settings survive an upgrade", async () => {
